@@ -1,568 +1,126 @@
-# AI Platform Gateway: Pydantic and Request Validation
+# AI Platform Gateway
 
-**Learning level:** Beginner (designed for a 15-year-old)
+## What is this project?
 
-This project is a small AI gateway built with FastAPI. It receives API requests, checks that the data is safe and correct, and sends back structured responses.
+This is a small practice project for learning how a web API works. Think of an API as a
+restaurant:
 
-An AI gateway is like a security desk and control room between a user and several AI companies:
+- A client (like a website) places an order by sending a request.
+- The API is the counter that receives the order.
+- The service checks the order and prepares a response.
+- The client gets the response back as JSON.
 
-```text
-User or app
-    |
-    |  HTTP request with JSON
-    v
-FastAPI gateway
-    |
-    |  Pydantic validates the JSON
-    v
-AI request service
-    |
-    |  Finds model and checks provider
-    v
-Structured JSON response
-```
+This project can show a list of example AI models and accept a pretend AI request.
+**It does not connect to OpenAI, Anthropic, or Google, and it does not generate a real
+AI answer.** It only simulates the request and estimates token counts.
 
-Today, the gateway does not contact a real AI model. It simulates the response so we can safely practice backend validation.
+## What you need
 
-## What this lesson teaches
+- Python installed on your computer
+- PowerShell (the terminal included with Windows)
 
-- What Pydantic is and why FastAPI uses it
-- How to require fields and set default values
-- How to limit numbers and text lengths
-- How to create optional fields
-- How to write custom validation rules
-- How to validate nested JSON
-- How to use response models
-- How to test an API in Swagger UI
-- What 400 and 422 HTTP status codes mean
+## Set up and run it
 
----
-
-## Quick start
-
-### 1. Open the project
-
-From this folder, activate the existing virtual environment:
-
-**Windows PowerShell**
+Open PowerShell in this project folder, then run:
 
 ```powershell
-.venv\Scripts\Activate.ps1
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-**Windows Command Prompt**
+The first command creates a project-only Python environment called `.venv`. The second
+installs the packages listed in [requirements.txt](requirements.txt). The last command
+starts the development server. Keep that terminal open while using the API; press
+**Ctrl+C** there to stop it.
 
-```bat
-.venv\Scripts\activate.bat
+If `.venv` already exists, you can skip the first command. Using the Python executable
+inside `.venv` keeps the packages and server command in the right environment, so
+PowerShell does not have to find a separate `fastapi` command on your PATH.
+
+Open the interactive API page at **http://127.0.0.1:8000/docs**. You can try the
+endpoints there without writing another program.
+
+## Try the endpoints
+
+| Method | URL | What it does |
+| --- | --- | --- |
+| `GET` | `/` | Shows a welcome message. |
+| `GET` | `/health` | Reports whether the app is running. |
+| `GET` | `/models` | Lists all example models. |
+| `GET` | `/models/gpt-4o` | Shows one model. Replace `gpt-4o` with another model ID to look it up. |
+| `POST` | `/requests` | Sends a pretend AI request and receives a simulated result. |
+
+For `POST /requests`, choose **Try it out** on the docs page and send this JSON:
+
+```json
+{
+  "model": "gpt-4o",
+  "prompt": "Explain AI",
+  "max_tokens": 100
+}
 ```
 
-### 2. Install dependencies
+You should get a response shaped like this (the request ID will be different each time):
 
-```powershell
-pip install -r requirements.txt
+```json
+{
+  "request_id": "req_a1b2c3d4",
+  "model": "gpt-4o",
+  "status": "success",
+  "input_tokens": 2,
+  "output_tokens": 3,
+  "total_tokens": 5,
+  "message": "AI request processed successfully (simulation)"
+}
 ```
 
-The main dependencies are:
+The token numbers are simple estimates made by this project, not the real token counts
+of an AI provider.
 
-- **FastAPI** - creates the web API
-- **Pydantic** - validates Python objects and JSON data
-- **Uvicorn** - runs the web server
+## How a request travels through the code
 
-### 3. Start the API
+1. FastAPI receives the web request at a route in [api/endpoints.py](api/endpoints.py).
+2. For `POST /requests`, Pydantic checks the incoming JSON against
+   [schemas/request_schema.py](schemas/request_schema.py).
+3. The route asks [services/model_service.py](services/model_service.py) to handle
+   the request.
+4. The service checks the model list in [config/models_config.py](config/models_config.py),
+   estimates token counts, and builds a response.
+5. FastAPI sends that response back as JSON.
 
-```powershell
-fastapi dev main.py
-```
+Keeping routes, data rules, service logic, and configuration in separate files makes
+the project easier to understand and change.
 
-Then open:
-
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- Application home: `http://127.0.0.1:8000/`
-- Health check: `http://127.0.0.1:8000/health`
-
-Stop the server with **Ctrl+C**.
-
----
-
-## Project files
+## Project map
 
 ```text
-AIPlatformGateway_03/
-├── main.py                 # Creates the FastAPI application
-├── api/
-│   └── endpoints.py        # API routes and HTTP responses
-├── config/
-│   └── models_config.py    # Available models and providers
-├── schemas/
-│   └── request_schema.py   # Pydantic input and output models
-├── services/
-│   └── model_service.py    # Request processing and validation logic
-├── requirements.txt        # Python dependencies
-└── README.md               # This guide
+main.py                    Creates the FastAPI app and adds the routes
+api/endpoints.py           Defines the URLs and what happens for each one
+schemas/request_schema.py  Describes and validates request/response data
+services/model_service.py  Contains the simulated request logic
+config/models_config.py    Stores the example model list
+requirements.txt           Lists the Python packages the project needs
 ```
 
-### main.py
-
-This creates the application, adds routes, and defines the title, description, and version.
-
-### api/endpoints.py
-
-This receives HTTP requests and decides what response to return.
-
-### schemas/request_schema.py
-
-This describes the shape and rules for incoming and outgoing data.
-
-### services/model_service.py
-
-This contains the main business logic, such as finding a model and checking its provider.
-
-### config/models_config.py
-
-This stores the models available in the current lesson.
-
----
-
-## Understanding Pydantic
-
-Pydantic validates data using Python type annotations.
-
-```python
-from pydantic import BaseModel
-
-class AIRequest(BaseModel):
-    model: str
-    prompt: str
-    max_tokens: int
-```
-
-This means:
-
-- `model` must be text
-- `prompt` must be text
-- `max_tokens` must be an integer
-
-Pydantic is useful because it performs repetitive validation automatically. FastAPI combines Pydantic with HTTP route definitions to create a well-documented API.
-
-### BaseModel
-
-`BaseModel` is the base for creating a Pydantic data model.
-
-```python
-class AIRequest(BaseModel):
-    model: str
-```
-
-### Field
-
-`Field` adds rules and extra information to a field.
-
-```python
-prompt: str = Field(
-    ...,
-    min_length=5,
-    max_length=10000,
-    description="Prompt submitted by the user"
-)
-```
-
-- `...` means the field is required
-- `min_length=5` requires at least 5 characters
-- `max_length=10000` allows at most 10,000 characters
-
-### Default values
-
-```python
-max_tokens: int = 500
-```
-
-If the request omits `max_tokens`, Pydantic uses `500`.
-
-### Number ranges
-
-```python
-temperature: float = Field(
-    default=0.7,
-    ge=0.0,
-    le=2.0
-)
-```
-
-- `ge` means greater than or equal to
-- `le` means less than or equal to
-- Temperature must therefore be from `0.0` through `2.0`
-
-Temperature controls output variation. A lower value usually gives more predictable text; a higher value allows more variation.
-
-### Optional fields
-
-```python
-provider: str | None = None
-```
-
-This field may contain text or `None`. Because it has a default, it can also be omitted.
-
-### Literal values
-
-```python
-provider: Literal["OpenAI", "Anthropic", "Google"] | None = None
-```
-
-`Literal` means the value must be one of the named choices.
-
----
-
-## Custom validation
-
-A custom validator lets us add a rule that Pydantic cannot express with an ordinary type alone.
-
-```python
-@field_validator("prompt")
-@classmethod
-def validate_prompt(cls, value):
-    cleaned_value = value.strip()
-
-    if not cleaned_value:
-        raise ValueError("Prompt cannot contain only spaces")
-
-    return cleaned_value
-```
-
-The `.strip()` method removes spaces at the beginning and end of the text.
-
-For example, this prompt is invalid:
-
-```json
-{
-  "model": "gpt-4o",
-  "prompt": "     "
-}
-```
-
-The validator cleans the value and rejects it when nothing remains.
-
----
-
-## Request and response models
-
-### AIRequest
-
-`AIRequest` describes the JSON accepted by `POST /requests`.
-
-| Field | Example | Rules |
-|---|---|---|
-| `model` | `"gpt-4o"` | Required text, 3-100 characters |
-| `prompt` | `"Explain AI engineering"` | Required text, 5-10,000 characters |
-| `max_tokens` | `500` | Integer from 1 to 4000 |
-| `temperature` | `0.7` | Number from 0.0 to 2.0 |
-| `provider` | `"OpenAI"` | Optional: OpenAI, Anthropic, or Google |
-| `stream` | `false` | Boolean; defaults to `false` |
-
-### AIResponse
-
-`AIResponse` describes what `POST /requests` returns:
-
-- A unique request ID
-- The model name
-- A success status
-- Estimated input tokens
-- Estimated output tokens
-- Total estimated tokens
-- A result message
-- The model provider
-
-### response_model
-
-FastAPI can convert the Python result into safe, predictable JSON:
-
-```python
-@router.post("/requests", response_model=AIResponse)
-def create_ai_request(request: AIRequest):
-    ...
-```
-
-`response_model=AIResponse` means the API will use `AIResponse` as the public output format.
-
----
-
-## Nested JSON
-
-Complex APIs often group related settings.
-
-```json
-{
-  "model": "gpt-4o",
-  "prompt": "Explain AI Platform Engineering",
-  "generation": {
-    "max_tokens": 1000,
-    "temperature": 0.5
-  },
-  "metadata": {
-    "user_id": "user_101",
-    "application": "AI Gateway"
-  }
-}
-```
-
-A nested Pydantic model checks the generation object:
-
-```python
-class GenerationConfig(BaseModel):
-    max_tokens: int = Field(default=500, ge=1, le=4000)
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-
-class AdvancedAIRequest(BaseModel):
-    model: str
-    prompt: str
-    generation: GenerationConfig
-    metadata: dict[str, str] = Field(default_factory=dict)
-```
-
-`GenerationConfig` is reused inside `AdvancedAIRequest`. `metadata: dict[str, str]` means each key and value must be text.
-
-`default_factory=dict` creates a separate empty dictionary when metadata is omitted. This prevents multiple objects from accidentally sharing mutable default data.
-
----
-
-## Provider and model validation
-
-The gateway knows these example models:
-
-| Model | Provider |
-|---|---|
-| `gpt-4o` | OpenAI |
-| `claude-3-5-sonnet` | Anthropic |
-| `gemini-2.0-flash` | Google |
-
-The service first checks whether the model exists. It then compares the requested provider with the provider in the model configuration.
-
-```json
-{
-  "model": "gpt-4o",
-  "provider": "Google",
-  "prompt": "Explain AI engineering"
-}
-```
-
-This is rejected because `gpt-4o` belongs to OpenAI, not Google.
-
----
-
-## API endpoints
-
-| Method | URL | Purpose |
-|---|---|---|
-| GET | `/` | Show a welcome message |
-| GET | `/health` | Confirm the service is healthy |
-| GET | `/models` | List all available models |
-| GET | `/models/{model_id}` | Get one model |
-| POST | `/requests` | Validate and simulate an AI request |
-| POST | `/requests/validate` | Check a prompt and count its characters |
-
-### HTTP status codes
-
-| Code | Name | Meaning here |
-|---:|---|---|
-| 200 | OK | The request worked |
-| 400 | Bad Request | The request is understood but conflicts with application rules |
-| 404 | Not Found | The requested model does not exist |
-| 422 | Unprocessable Entity | Pydantic validation rejected the request data |
-
----
-
-## Test in Swagger
-
-Open `http://127.0.0.1:8000/docs`, select an endpoint, choose **Try it out**, enter JSON, and select **Execute**.
-
-### Test 1: valid request
-
-```json
-{
-  "model": "gpt-4o",
-  "prompt": "Explain AI Platform Engineering",
-  "max_tokens": 500,
-  "temperature": 0.7,
-  "provider": "OpenAI",
-  "stream": false
-}
-```
-
-Expected: `200 OK`, with a response containing `request_id`, token counts, and `provider`.
-
-The token counts are only simulations. The gateway estimates input tokens by splitting the prompt into words. It does not use a real tokenizer or call an AI model.
-
-### Test 2: invalid temperature
-
-```json
-{
-  "model": "gpt-4o",
-  "prompt": "Explain AI Platform Engineering",
-  "temperature": 5
-}
-```
-
-Expected: `422 Unprocessable Entity`, because temperature must be from `0.0` to `2.0`.
-
-### Test 3: provider mismatch
-
-```json
-{
-  "model": "gpt-4o",
-  "prompt": "Explain AI Platform Engineering",
-  "provider": "Google"
-}
-```
-
-Expected: `400 Bad Request`.
-
-### Test 4: empty prompt
-
-```json
-{
-  "model": "gpt-4o",
-  "prompt": "     "
-}
-```
-
-Expected: `422 Unprocessable Entity`.
-
-### Test 5: prompt validation
-
-Request to `POST /requests/validate`:
-
-```json
-{
-  "prompt": "Explain AI Platform Engineering"
-}
-```
-
-Example response:
-
-```json
-{
-  "valid": true,
-  "prompt_length": 32,
-  "message": "Prompt validation successful"
-}
-```
-
----
-
-## Important terms
-
-| Term | Simple meaning |
-|---|---|
-| Schema | A description of expected data |
-| Validation | Checking whether data follows the rules |
-| BaseModel | Pydantic's base class for data models |
-| Field | Adds rules or metadata to a field |
-| Custom validator | An application-specific validation rule |
-| Optional field | A field that may be omitted or use `None` |
-| Nested model | A Pydantic model used inside another model |
-| Response model | Defines the shape and type of API output |
-| Serialization | Converts Python objects into JSON |
-| Deserialization | Converts JSON into Python objects |
-| Type annotation | A label saying what type a value should have |
-
----
-
-## Practice assignments
-
-Try these changes yourself.
-
-### 1. Add top_p
-
-Add this field to `AIRequest`:
-
-```python
-top_p: float = Field(
-    default=1.0,
-    ge=0.0,
-    le=1.0
-)
-```
-
-Test that `top_p: 1.5` is rejected.
-
-### 2. Strengthen prompt validation
-
-The prompt validator already strips whitespace and rejects an all-space prompt. Try adding it to `PromptValidationRequest` too, so every prompt entry uses the same rule.
-
-### 3. Filter models by provider
-
-Create:
-
-```text
-GET /models/provider/{provider_name}
-```
-
-It should return only models whose `provider` value matches `provider_name`.
-
-Use `AVAILABLE_MODELS` and filter its values, for example:
-
-```python
-[model for model in AVAILABLE_MODELS.values()
- if model["provider"] == provider_name]
-```
-
-Choose the expected behavior for an unknown provider and test it.
-
----
-
-## Interview questions
-
-### 1. What is Pydantic?
-
-Pydantic validates and structures Python data using type annotations.
-
-### 2. Why does FastAPI use Pydantic?
-
-FastAPI uses Pydantic to validate request bodies, generate API documentation, and shape responses.
-
-### 3. What is the difference between `BaseModel` and `Field`?
-
-`BaseModel` creates a data model. `Field` adds constraints and configuration to an individual field.
-
-### 4. What is a custom field validator?
-
-It is a function that checks or transforms a field according to a custom application rule.
-
-### 5. What is a nested Pydantic model?
-
-It is a model used as a field inside another model.
-
-### 6. What is the difference between 400 and 422?
-
-`400` means a validly structured request conflicts with application logic. `422` means Pydantic found invalid request data.
-
-### 7. What does `response_model` do?
-
-It tells FastAPI which Pydantic model defines the public response structure.
-
-### 8. What is the difference between `str | None = None` and `str`?
-
-`str | None = None` allows text or no value. `str` is required and must be text.
-
----
-
-## Completion checklist
-
-- [ ] I understand `BaseModel`
-- [ ] I understand required fields and default values
-- [ ] I understand optional fields
-- [ ] I can use `Field` constraints
-- [ ] I can explain `ge` and `le`
-- [ ] I understand custom field validators
-- [ ] I understand nested Pydantic models
-- [ ] I know the difference between 400 and 422
-- [ ] I tested a valid request in Swagger
-- [ ] I tested invalid temperature
-- [ ] I tested a provider mismatch
-- [ ] I tested an empty prompt
-- [ ] I tested `POST /requests/validate`
-- [ ] I answered the interview questions
-- [ ] I completed the practice assignments
-
-## What comes next
-
-Day 12 adds a real database. SQL and SQLAlchemy will let the gateway save AI requests and retrieve request history instead of keeping information only in memory.
+## A few useful ideas
+
+- **GET** usually asks to read information, like the model list.
+- **POST** usually sends information to be processed, like a prompt.
+- **JSON** is a text format for sending organized data, using keys and values.
+- A **route** is a method and URL that the API knows how to handle.
+- A **schema** is a set of rules for what data is allowed.
+- A **virtual environment** keeps this project's Python packages separate from other
+  projects on your computer.
+
+The request schema requires a model and a non-empty prompt. `max_tokens` defaults to
+500 and must be between 1 and 4000. An unknown model returns **404 Not Found**; invalid
+request data returns **422 Unprocessable Entity**.
+
+## Beginner experiments
+
+1. Open `/models` in the docs and find the model IDs.
+2. Try `/models/not-a-real-model` and notice the 404 response.
+3. Send an empty prompt or set `max_tokens` to `5000` and notice the validation error.
+4. Add another example model in `config/models_config.py` and try looking it up.
+5. Read the endpoint and service files to see how the request moves through the app.

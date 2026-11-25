@@ -6,17 +6,13 @@ from services.model_service import (
     process_ai_request
 )
 
-from schemas.request_schema import (
-    AIRequest,
-    AIResponse,
-    PromptValidationRequest,
-    PromptValidationResponse
-)
+from schemas.request_schema import AIRequest, AIResponse
 
 
 router = APIRouter()
 
 
+# GET: List all available AI models
 @router.get("/models")
 def list_models():
 
@@ -28,6 +24,7 @@ def list_models():
     }
 
 
+# GET: Retrieve one specific model
 @router.get("/models/{model_id}")
 def retrieve_model(model_id: str):
 
@@ -42,6 +39,7 @@ def retrieve_model(model_id: str):
     return model
 
 
+# POST: Submit an AI request
 @router.post(
     "/requests",
     response_model=AIResponse
@@ -56,25 +54,4 @@ def create_ai_request(request: AIRequest):
             detail="Requested AI model does not exist"
         )
 
-    if response == "provider_mismatch":
-        raise HTTPException(
-            status_code=400,
-            detail="Selected provider does not match the model"
-        )
-
     return response
-
-
-@router.post(
-    "/requests/validate",
-    response_model=PromptValidationResponse
-)
-def validate_prompt(request: PromptValidationRequest):
-
-    cleaned_prompt = request.prompt.strip()
-
-    return PromptValidationResponse(
-        valid=True,
-        prompt_length=len(cleaned_prompt),
-        message="Prompt validation successful"
-    )
