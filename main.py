@@ -6,7 +6,7 @@ from api.endpoints import router
 app = FastAPI(
     title="AI Platform Gateway",
     description="API for managing AI models and processing AI requests",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 
